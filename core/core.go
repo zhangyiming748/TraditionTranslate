@@ -1,0 +1,73 @@
+package core
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+)
+
+// Core 核心功能：解析字幕文件，翻译原文内容为中文，生成新的字幕文件
+func Core(inputfile string) {
+	/*
+		TODO:
+		这里首先使用函数把一个字幕解析成每一组字幕的结构体。
+		然后使用函数把每一组字幕的结构体中的正文内容翻译成中文。
+		补充到结构体的最后一个值就是中文字幕的值。
+		重新把每一组字幕的四个值（序号、时间轴、原文内容和译文内容）写成新的字幕，中间有一个换行，然后继续写下一组，直到写完。
+		这个新的结构体是写到新的字幕文件里
+		原字幕文件不变，但是在扩展名之前加一个_zhs 标记，表示这是中文翻译的字幕文件。
+	*/
+
+	// 1. 定义输入文件路径
+	// 使用参数 inputfile
+
+	// 2. 解析字幕文件
+	subtitles, err := ParseSubtitle(inputfile)
+	if err != nil {
+		fmt.Printf("解析字幕文件失败: %v\n", err)
+		return
+	}
+
+	fmt.Printf("成功解析 %d 条字幕\n", len(subtitles))
+
+	// 3. 翻译每种子幕的原文内容并填充 Zhcn 字段
+	for i := range subtitles {
+		if subtitles[i].Content == "" {
+			continue
+		}
+
+		zhcn, err := Translate(subtitles[i].Content)
+		if err != nil {
+			fmt.Printf("第 %d 条字幕翻译失败: %v\n", subtitles[i].Index, err)
+			continue
+		}
+		subtitles[i].Zhcn = zhcn
+		fmt.Printf("[%d] 原文: %s\n   译文: %s\n\n", subtitles[i].Index, subtitles[i].Content, subtitles[i].Zhcn)
+	}
+
+	// 4. 生成输出文件路径（在扩展名之前添加 _zhs）
+	dir := filepath.Dir(inputfile)
+	base := filepath.Base(inputfile)
+	ext := filepath.Ext(base)
+	nameWithoutExt := base[:len(base)-len(ext)]
+	outputFile := filepath.Join(dir, nameWithoutExt+"_zhs"+ext)
+
+	// 5. 创建输出文件
+	outFile, err := os.Create(outputFile)
+	if err != nil {
+		fmt.Printf("创建输出文件失败: %v\n", err)
+		return
+	}
+	defer outFile.Close()
+
+	// 6. 写入新的字幕格式（序号、时间轴、原文、空一行、译文）
+	for _, sub := range subtitles {
+		fmt.Fprintf(outFile, "%d\n", sub.Index)
+		fmt.Fprintf(outFile, "%s\n", sub.Timeline)
+		fmt.Fprintf(outFile, "%s\n", sub.Content)
+		fmt.Fprintf(outFile, "%s\n", sub.Zhcn)
+		fmt.Fprintf(outFile, "\n") // 字幕块之间用换行分隔
+	}
+
+	fmt.Printf("翻译完成！输出文件: %s\n", outputFile)
+}
