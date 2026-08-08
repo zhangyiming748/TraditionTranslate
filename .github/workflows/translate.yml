@@ -5,8 +5,10 @@ on:
     paths:
       - '*.srt'
       - '*.go'
+      - 'core/*.go'
       - 'go.mod'
       - 'go.sum'
+      - '.github/workflows/*.yml'
 
 jobs:
   translate:
