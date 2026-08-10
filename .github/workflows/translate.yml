@@ -24,7 +24,7 @@ jobs:
           go-version: 'stable'
       
       - name: Install translate-shell
-        run: sudo apt-get update && sudo apt-get install -y translate-shell
+        run: sudo apt-get update && sudo apt-get install -y translate-shell tree
       
       - name: Verify translate-shell installation
         run: |
@@ -38,29 +38,9 @@ jobs:
       - name: Run translation
         run: go run main.go
       
-      - name: Debug - Check generated files
-        if: always()
-        run: |
-          echo "=== Checking srt directory ==="
-          ls -la srt/ | head -30
-          echo ""
-          echo "=== Checking for _zhs files ==="
-          ls srt/*_zhs.srt 2>/dev/null || echo "No _zhs.srt files found"
-          echo ""
-          echo "=== Counting files ==="
-          echo "Total srt files: $(ls srt/*.srt 2>/dev/null | wc -l)"
-          echo "Translated files: $(ls srt/*_zhs.srt 2>/dev/null | wc -l)"
+      - name: List all files
+        run: tree ${{ github.workspace }}
       
-      - name: Sanitize translated filenames
-        run: |
-          cd srt
-          for f in *_zhs.srt; do
-            newname=$(echo "$f" | sed 's/[?:<>|*"\/\\]/_/g' | tr '\r\n' '__')
-            if [ "$f" != "$newname" ]; then
-              mv "$f" "$newname"
-            fi
-          done
-
       - name: Upload translated subtitles artifact
         uses: actions/upload-artifact@v7
         with:

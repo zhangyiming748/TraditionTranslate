@@ -20,7 +20,7 @@ func Translate(src string) (dst string, err error) {
 	args := []string{}
 	args = append(args, "-brief")             // 简洁模式，只显示翻译结果
 	args = append(args, "-e", "google")       // 使用 Google 翻译引擎
-	args = append(args, "-source", "auto")      // 自动检测源语言
+	args = append(args, "-source", "auto")    // 自动检测源语言
 	args = append(args, "-target", "Chinese") // 目标语言为中文
 	args = append(args, src)                  // 待翻译文本
 	cmd := exec.Command("trans", args...)
