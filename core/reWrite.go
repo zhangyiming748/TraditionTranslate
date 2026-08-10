@@ -16,6 +16,10 @@ func cleanFileName(s string) string {
 		}
 	}
 	cleaned := string(result)
+	// 替换在特定文件系统（如 NTFS）上非法的字符，避免 GitHub Actions 上传工件时报错
+	for _, invalidChar := range []string{"\"", ":", "<", ">", "|", "*", "?"} {
+		cleaned = strings.ReplaceAll(cleaned, invalidChar, "")
+	}
 	// 将多个连续空白合并为单个空格
 	cleaned = strings.Join(strings.Fields(cleaned), " ")
 	// 循环清理，直到文件名不再变化（因为某些清理可能产生新的需清理内容）
