@@ -38,6 +38,16 @@ jobs:
       - name: Run translation
         run: go run main.go
       
+      - name: Sanitize translated filenames
+        run: |
+          cd srt
+          for f in *_zhs.srt; do
+            newname=$(echo "$f" | sed 's/[?:<>|*"\/\\]/_/g' | tr '\r\n' '__')
+            if [ "$f" != "$newname" ]; then
+              mv "$f" "$newname"
+            fi
+          done
+
       - name: Upload translated subtitles artifact
         uses: actions/upload-artifact@v7
         with:

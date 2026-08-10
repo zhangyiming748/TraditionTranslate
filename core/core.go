@@ -45,11 +45,12 @@ func Core(inputfile string) {
 		fmt.Printf("[%d] 原文: %s\n   译文: %s\n\n", subtitles[i].Index, subtitles[i].Content, subtitles[i].Zhcn)
 	}
 
-	// 4. 生成输出文件路径（在扩展名之前添加 _zhs）
+	// 4. 生成输出文件路径（在扩展名之前添加 _zhs，并移除文件名中的 emoji 字符）
 	dir := filepath.Dir(inputfile)
 	base := filepath.Base(inputfile)
 	ext := filepath.Ext(base)
 	nameWithoutExt := base[:len(base)-len(ext)]
+	nameWithoutExt = cleanFileName(nameWithoutExt)
 	outputFile := filepath.Join(dir, nameWithoutExt+"_zhs"+ext)
 
 	// 5. 创建输出文件
