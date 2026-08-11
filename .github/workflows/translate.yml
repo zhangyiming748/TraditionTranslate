@@ -41,9 +41,17 @@ jobs:
       - name: List all files
         run: tree ${{ github.workspace }}
       
+      - name: Pack SRT files into tar archive
+        run: |
+          cd ${{ github.workspace }}
+          find srt -type f -iname '*.srt' -print0 | tar -cf translated-srt.tar --null -T -
+          tar -tf translated-srt.tar | head -n 20
+          echo "共打包 $(tar -tf translated-srt.tar | wc -l) 个 SRT 文件"
+      
       - name: Upload translated subtitles artifact
         uses: actions/upload-artifact@v7
         with:
           name: translated-subtitles
-          path: srt/*.srt
+          path: translated-srt.tar
           retention-days: 30
+          if-no-files-found: error
