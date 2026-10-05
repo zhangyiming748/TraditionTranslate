@@ -86,13 +86,18 @@ func Core(inputfile string) {
 	nameWithoutExt = cleanFileName(nameWithoutExt)
 	outputFile := filepath.Join(dir, nameWithoutExt+"_zhs"+ext)
 
-	// 5. 创建输出文件
-	outFile, err := os.Create(outputFile)
+	// 5. 原子写入：先写到临时文件，全部写完且关闭成功后再 rename 成最终文件。
+	// 这样即使程序在写入中途被强杀（如 Actions 6 小时超时），
+	// 也不会留下半截的 _zhs.srt 被误判为"已翻译完成"。
+	// 同时清理上一次运行可能残留的 .tmp 文件。
+	tmpFile := outputFile + ".tmp"
+	os.Remove(tmpFile) // 清理可能残留的临时文件
+
+	outFile, err := os.Create(tmpFile)
 	if err != nil {
 		fmt.Printf("创建输出文件失败: %v\n", err)
 		return
 	}
-	defer outFile.Close()
 
 	// 6. 写入新的字幕格式（序号、时间轴、原文、空一行、译文）
 	for _, sub := range subtitles {
@@ -101,6 +106,19 @@ func Core(inputfile string) {
 		fmt.Fprintf(outFile, "%s\n", sub.Content)
 		fmt.Fprintf(outFile, "%s\n", sub.Zhcn)
 		fmt.Fprintf(outFile, "\n") // 字幕块之间用换行分隔
+	}
+
+	// 关闭文件后再 rename，确保数据已落盘。
+	// 只要 rename 没成功，_zhs.srt 就不会出现，绝无半截文件。
+	if err := outFile.Close(); err != nil {
+		fmt.Printf("关闭输出文件失败: %v\n", err)
+		os.Remove(tmpFile)
+		return
+	}
+	if err := os.Rename(tmpFile, outputFile); err != nil {
+		fmt.Printf("重命名输出文件失败: %v\n", err)
+		os.Remove(tmpFile)
+		return
 	}
 
 	fmt.Printf("翻译完成！输出文件: %s\n", outputFile)
