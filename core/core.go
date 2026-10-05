@@ -4,7 +4,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 )
+
+// MaxConcurrent 同时进行的翻译请求数上限。
+// 每条字幕都会启动一个 trans 子进程并向 Google 发送请求，
+// 该值过大会触发 Google 限流（HTTP 429），过小则速度提升不明显。
+// 你可以根据测试结果自行调整这个常量。
+const MaxConcurrent = 2
 
 // Core 核心功能：解析字幕文件，翻译原文内容为中文，生成新的字幕文件
 func Core(inputfile string) {
@@ -30,18 +37,44 @@ func Core(inputfile string) {
 
 	fmt.Printf("成功解析 %d 条字幕\n", len(subtitles))
 
-	// 3. 翻译每种子幕的原文内容并填充 Zhcn 字段
+	// 3. 并发翻译每条字幕的原文内容并填充 Zhcn 字段
+	// 使用信号量（容量为 MaxConcurrent）限制同时在途的翻译请求数，
+	// 避免触发 Google 限流；用结果切片按原序号保存译文以保证输出顺序。
+	sem := make(chan struct{}, MaxConcurrent)
+	results := make([]string, len(subtitles))
+	errs := make([]error, len(subtitles))
+	var wg sync.WaitGroup
+
 	for i := range subtitles {
 		if subtitles[i].Content == "" {
 			continue
 		}
 
-		zhcn, err := Translate(subtitles[i].Content)
-		if err != nil {
-			fmt.Printf("第 %d 条字幕翻译失败: %v\n", subtitles[i].Index, err)
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+
+			// 获取信号量：达到 MaxConcurrent 时阻塞，实现并发限流
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			zhcn, err := Translate(subtitles[idx].Content)
+			if err != nil {
+				errs[idx] = err
+				return
+			}
+			results[idx] = zhcn
+		}(i)
+	}
+	wg.Wait()
+
+	// 按原顺序回填结果，保证输出字幕序号正确
+	for i := range subtitles {
+		if errs[i] != nil {
+			fmt.Printf("第 %d 条字幕翻译失败: %v\n", subtitles[i].Index, errs[i])
 			continue
 		}
-		subtitles[i].Zhcn = zhcn
+		subtitles[i].Zhcn = results[i]
 		fmt.Printf("[%d] 原文: %s\n   译文: %s\n\n", subtitles[i].Index, subtitles[i].Content, subtitles[i].Zhcn)
 	}
 
