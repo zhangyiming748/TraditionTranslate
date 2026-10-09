@@ -93,10 +93,11 @@ func Core(inputfile string) {
 		return
 	}
 
-	// 6. 写入翻译后的字幕格式（序号、时间轴、译文），直接替换原始文件
+	// 6. 写入字幕格式（序号、时间轴、原文、译文），直接替换原始文件
 	for _, sub := range subtitles {
 		fmt.Fprintf(outFile, "%d\n", sub.Index)
 		fmt.Fprintf(outFile, "%s\n", sub.Timeline)
+		fmt.Fprintf(outFile, "%s\n", sub.Content)
 		fmt.Fprintf(outFile, "%s\n", sub.Zhcn)
 		fmt.Fprintf(outFile, "\n") // 字幕块之间用换行分隔
 	}
