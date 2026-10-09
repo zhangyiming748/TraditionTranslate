@@ -86,3 +86,43 @@ func parseContent(content string) ([]Subtitle, error) {
 
 	return subtitles, nil
 }
+
+// MergeSubtitles 合并内容相同的相邻字幕条目。
+// 合并后：序号取该组第一条的序号，开始时间用第一条的开始时间，
+// 结束时间用最后一条的结束时间，文字内容不变。
+// 这是翻译前的预处理步骤，可减少重复内容造成的翻译请求次数。
+func MergeSubtitles(subs []Subtitle) []Subtitle {
+	if len(subs) == 0 {
+		return subs
+	}
+
+	var result []Subtitle
+	current := subs[0]
+
+	for i := 1; i < len(subs); i++ {
+		if subs[i].Content == current.Content {
+			// 内容相同：合并时间轴（取 current 的开始，subs[i] 的结束）
+			current.Timeline = mergeTimeline(current.Timeline, subs[i].Timeline)
+		} else {
+			result = append(result, current)
+			current = subs[i]
+		}
+	}
+	result = append(result, current)
+
+	return result
+}
+
+// mergeTimeline 合并两条时间轴：使用第一条的开始时间和第二条的结束时间。
+// 输入格式: "00:18:35,320 --> 00:18:37,320"
+func mergeTimeline(first, second string) string {
+	parts1 := strings.Split(first, "-->")
+	parts2 := strings.Split(second, "-->")
+	if len(parts1) != 2 || len(parts2) != 2 {
+		// 时间轴格式异常，回退使用第一条
+		return first
+	}
+	start := strings.TrimSpace(parts1[0])
+	end := strings.TrimSpace(parts2[1])
+	return start + " --> " + end
+}

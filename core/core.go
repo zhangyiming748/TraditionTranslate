@@ -36,6 +36,12 @@ func Core(inputfile string) {
 
 	fmt.Printf("成功解析 %d 条字幕\n", len(subtitles))
 
+	// 合并内容相同的相邻字幕条目，减少重复内容的翻译请求次数。
+	// 合并后取该组第一条的开始时间轴与最后一条的结束时间轴，文字不变。
+	beforeMerge := len(subtitles)
+	subtitles = MergeSubtitles(subtitles)
+	fmt.Printf("合并相同字幕: %d -> %d 条\n", beforeMerge, len(subtitles))
+
 	// 3. 并发翻译每条字幕的原文内容并填充 Zhcn 字段
 	// 使用信号量（容量为 MaxConcurrent）限制同时在途的翻译请求数，
 	// 避免触发 Google 限流；用结果切片按原序号保存译文以保证输出顺序。
@@ -94,8 +100,10 @@ func Core(inputfile string) {
 	}
 
 	// 6. 写入字幕格式（序号、时间轴、原文、译文），直接替换原始文件
-	for _, sub := range subtitles {
-		fmt.Fprintf(outFile, "%d\n", sub.Index)
+	// 序号用循环计数器从 1 开始连续编号，合并后可能减少了条目数，
+	// 不再保留原文件中不连续的序号。
+	for i, sub := range subtitles {
+		fmt.Fprintf(outFile, "%d\n", i+1)
 		fmt.Fprintf(outFile, "%s\n", sub.Timeline)
 		fmt.Fprintf(outFile, "%s\n", sub.Content)
 		fmt.Fprintf(outFile, "%s\n", sub.Zhcn)
