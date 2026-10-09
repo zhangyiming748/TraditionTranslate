@@ -3,7 +3,6 @@ package core
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"sync"
 )
 
@@ -78,17 +77,12 @@ func Core(inputfile string) {
 		fmt.Printf("[%d] 原文: %s\n   译文: %s\n\n", subtitles[i].Index, subtitles[i].Content, subtitles[i].Zhcn)
 	}
 
-	// 4. 生成输出文件路径（在扩展名之前添加 _zhs，并移除文件名中的 emoji 字符）
-	dir := filepath.Dir(inputfile)
-	base := filepath.Base(inputfile)
-	ext := filepath.Ext(base)
-	nameWithoutExt := base[:len(base)-len(ext)]
-	nameWithoutExt = cleanFileName(nameWithoutExt)
-	outputFile := filepath.Join(dir, nameWithoutExt+"_zhs"+ext)
+	// 4. 输出文件直接替换原始文件（文件名保持一致，不加尾部标记）
+	outputFile := inputfile
 
 	// 5. 原子写入：先写到临时文件，全部写完且关闭成功后再 rename 成最终文件。
 	// 这样即使程序在写入中途被强杀（如 Actions 6 小时超时），
-	// 也不会留下半截的 _zhs.srt 被误判为"已翻译完成"。
+	// 也不会留下半截的原始文件被误判为"已翻译完成"。
 	// 同时清理上一次运行可能残留的 .tmp 文件。
 	tmpFile := outputFile + ".tmp"
 	os.Remove(tmpFile) // 清理可能残留的临时文件
@@ -99,17 +93,16 @@ func Core(inputfile string) {
 		return
 	}
 
-	// 6. 写入新的字幕格式（序号、时间轴、原文、空一行、译文）
+	// 6. 写入翻译后的字幕格式（序号、时间轴、译文），直接替换原始文件
 	for _, sub := range subtitles {
 		fmt.Fprintf(outFile, "%d\n", sub.Index)
 		fmt.Fprintf(outFile, "%s\n", sub.Timeline)
-		fmt.Fprintf(outFile, "%s\n", sub.Content)
 		fmt.Fprintf(outFile, "%s\n", sub.Zhcn)
 		fmt.Fprintf(outFile, "\n") // 字幕块之间用换行分隔
 	}
 
 	// 关闭文件后再 rename，确保数据已落盘。
-	// 只要 rename 没成功，_zhs.srt 就不会出现，绝无半截文件。
+	// 只要 rename 没成功，原始文件就不会被覆盖，绝无半截文件。
 	if err := outFile.Close(); err != nil {
 		fmt.Printf("关闭输出文件失败: %v\n", err)
 		os.Remove(tmpFile)
@@ -121,5 +114,5 @@ func Core(inputfile string) {
 		return
 	}
 
-	fmt.Printf("翻译完成！输出文件: %s\n", outputFile)
+	fmt.Printf("翻译完成！已替换原始文件: %s\n", outputFile)
 }
