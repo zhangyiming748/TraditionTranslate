@@ -49,7 +49,7 @@ jobs:
       - name: Pack SRT files into tar archive
         run: |
           cd ${{ github.workspace }}
-          find srt -type f -iname '*_zhs.srt' -print0 | tar -cf translated-srt.tar --null -T -
+          find srt -type f -iname '*.srt' -print0 | tar -cf translated-srt.tar --null -T -
           tar -tf translated-srt.tar | head -n 20
           echo "共打包 $(tar -tf translated-srt.tar | wc -l) 个翻译后的 SRT 文件"
       
