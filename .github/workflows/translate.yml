@@ -35,6 +35,11 @@ jobs:
       - name: Download dependencies
         run: go mod download
       
+      - name: Check subtitle lines
+        run: |
+          chmod +x check_srt.sh
+          ./check_srt.sh "${GITHUB_WORKSPACE}/srt"
+      
       - name: Run translation
         run: go run main.go
       
