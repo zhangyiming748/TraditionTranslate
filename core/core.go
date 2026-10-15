@@ -36,7 +36,14 @@ func Core(inputfile string) {
 
 	fmt.Printf("成功解析 %d 条字幕\n", len(subtitles))
 
-	// 合并内容相同的相邻字幕条目，减少重复内容的翻译请求次数。
+	// 第一步：清理 Whisper 幻觉产生的连续重复字符/字符组（单字→双字组→三字组）。
+	// 必须在合并之前做，因为去重可能让原本不同的条目变得相同，
+	// 从而让后续合并能再多合并几条。
+	for i := range subtitles {
+		subtitles[i].Content = DedupRepeats(subtitles[i].Content)
+	}
+
+	// 第二步：合并内容相同的相邻字幕条目，减少重复内容的翻译请求次数。
 	// 合并后取该组第一条的开始时间轴与最后一条的结束时间轴，文字不变。
 	beforeMerge := len(subtitles)
 	subtitles = MergeSubtitles(subtitles)
