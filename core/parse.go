@@ -91,6 +91,8 @@ func parseContent(content string) ([]Subtitle, error) {
 // 合并后：序号取该组第一条的序号，开始时间用第一条的开始时间，
 // 结束时间用最后一条的结束时间，文字内容不变。
 // 这是翻译前的预处理步骤，可减少重复内容造成的翻译请求次数。
+// 注意：Content 为空的条目不参与合并，保持原样，避免去重后空条目
+// 被合并导致 SRT 结构变化（条目数减少）。
 func MergeSubtitles(subs []Subtitle) []Subtitle {
 	if len(subs) == 0 {
 		return subs
@@ -100,6 +102,12 @@ func MergeSubtitles(subs []Subtitle) []Subtitle {
 	current := subs[0]
 
 	for i := 1; i < len(subs); i++ {
+		// 空内容条目不参与合并，遇到就封口，保持 SRT 结构
+		if current.Content == "" || subs[i].Content == "" {
+			result = append(result, current)
+			current = subs[i]
+			continue
+		}
 		if subs[i].Content == current.Content {
 			// 内容相同：合并时间轴（取 current 的开始，subs[i] 的结束）
 			current.Timeline = mergeTimeline(current.Timeline, subs[i].Timeline)
@@ -125,4 +133,58 @@ func mergeTimeline(first, second string) string {
 	start := strings.TrimSpace(parts1[0])
 	end := strings.TrimSpace(parts2[1])
 	return start + " --> " + end
+}
+
+// DedupRepeats 清理 Whisper 幻觉产生的连续重复字符/字符组。
+// 从短到长扫描所有可能的分组长度（1 字、2 字、3 字……直到 len/2），
+// 任何长度的连续重复组都压缩成一组。
+// 使用递归：一次扫描后如果产生了变化，说明可能出现新的相邻重复对
+// （例如 ああいいああいい 先经单字去重变 あいあい，两边新对上了，
+// 再递归进入双字组去重变 あい），所以递归调用自身直到完全收敛。
+func DedupRepeats(content string) string {
+	if content == "" {
+		return content
+	}
+
+	runes := []rune(content)
+	for n := 1; n*2 <= len(runes); n++ {
+		collapsed := collapseGroupN(runes, n)
+		if len(collapsed) != len(runes) {
+			// 有变化 → 可能产生新的相邻重复对，递归继续去重
+			return DedupRepeats(string(collapsed))
+		}
+	}
+	return string(runes)
+}
+
+// collapseGroupN 把连续重复 n 个字的组压缩成一组。
+// 例如 n=1: ああああ → あ，n=2: あいあいあい → あい，
+// n=4: すみませんすみませんすみません → すみません
+func collapseGroupN(runes []rune, n int) []rune {
+	if len(runes) < n*2 {
+		return runes
+	}
+
+	var result []rune
+	i := 0
+	for i < len(runes) {
+		// 检查从 i 开始是否有连续 n 个字的重复组（至少 2 次）
+		if i+n*2 <= len(runes) {
+			pattern := string(runes[i : i+n])
+			count := 1
+			j := i + n
+			for j+n <= len(runes) && string(runes[j:j+n]) == pattern {
+				count++
+				j += n
+			}
+			if count >= 2 {
+				result = append(result, runes[i:i+n]...)
+				i = j
+				continue
+			}
+		}
+		result = append(result, runes[i])
+		i++
+	}
+	return result
 }
