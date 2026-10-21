@@ -3,14 +3,13 @@ package core
 import (
 	"fmt"
 	"os"
-	"sync"
+	"time"
 )
 
-// MaxConcurrent 同时进行的翻译请求数上限。
-// 每条字幕都会启动一个 trans 子进程并向 Google 发送请求，
-// 该值过大会触发 Google 限流（HTTP 429），过小则速度提升不明显。
-// 你可以根据测试结果自行调整这个常量。
-const MaxConcurrent = 2
+// TranslateInterval 每条字幕翻译之间的间隔。
+// 逐条串行翻译并留出间隔，避免请求过于频繁触发 Google 限流，
+// 限流时 trans 命令会返回空内容（DST 为空）。
+const TranslateInterval = 2 * time.Second
 
 // Core 核心功能：解析字幕文件，翻译原文内容为中文，生成新的字幕文件
 func Core(inputfile string) {
@@ -49,45 +48,26 @@ func Core(inputfile string) {
 	subtitles = MergeSubtitles(subtitles)
 	fmt.Printf("合并相同字幕: %d -> %d 条\n", beforeMerge, len(subtitles))
 
-	// 3. 并发翻译每条字幕的原文内容并填充 Zhcn 字段
-	// 使用信号量（容量为 MaxConcurrent）限制同时在途的翻译请求数，
-	// 避免触发 Google 限流；用结果切片按原序号保存译文以保证输出顺序。
-	sem := make(chan struct{}, MaxConcurrent)
-	results := make([]string, len(subtitles))
-	errs := make([]error, len(subtitles))
-	var wg sync.WaitGroup
-
+	// 3. 串行翻译每条字幕的原文内容并填充 Zhcn 字段。
+	// 文件变多时并发请求容易触发 Google 限流（trans 返回空内容），
+	// 因此逐条翻译，每条之间留出 TranslateInterval 间隔。
 	for i := range subtitles {
 		if subtitles[i].Content == "" {
 			continue
 		}
 
-		wg.Add(1)
-		go func(idx int) {
-			defer wg.Done()
-
-			// 获取信号量：达到 MaxConcurrent 时阻塞，实现并发限流
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
-			zhcn, err := Translate(subtitles[idx].Content)
-			if err != nil {
-				errs[idx] = err
-				return
-			}
-			results[idx] = zhcn
-		}(i)
-	}
-	wg.Wait()
-
-	// 按原顺序回填结果，保证输出字幕序号正确
-	for i := range subtitles {
-		if errs[i] != nil {
-			fmt.Printf("第 %d 条字幕翻译失败: %v\n", subtitles[i].Index, errs[i])
-			continue
+		zhcn, transErr := Translate(subtitles[i].Content)
+		if transErr != nil {
+			fmt.Printf("第 %d 条字幕翻译失败: %v\n", subtitles[i].Index, transErr)
+		} else {
+			subtitles[i].Zhcn = zhcn
 		}
-		subtitles[i].Zhcn = results[i]
 		fmt.Printf("[%d] 原文: %s\n   译文: %s\n\n", subtitles[i].Index, subtitles[i].Content, subtitles[i].Zhcn)
+
+		// 每条之间留出间隔，最后一条不用等
+		if i < len(subtitles)-1 {
+			time.Sleep(TranslateInterval)
+		}
 	}
 
 	// 4. 输出文件直接替换原始文件（文件名保持一致，不加尾部标记）
