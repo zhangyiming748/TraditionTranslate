@@ -43,13 +43,15 @@ jobs:
         run: tree ${{ github.workspace }}
       
       - name: Pack SRT files into tar archive
+        if: always()
         run: |
           cd ${{ github.workspace }}
           find srt -type f -iname '*.srt' -print0 | tar -cf translated-srt.tar --null -T -
           tar -tf translated-srt.tar | head -n 20
-          echo "共打包 $(tar -tf translated-srt.tar | wc -l) 个翻译后的 SRT 文件"
+          echo "共打包 $(tar -tf translated-srt.tar | wc -l) 个 SRT 文件"
       
       - name: Upload translated subtitles artifact
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: translated-subtitles

@@ -6,9 +6,13 @@ import (
 	"time"
 )
 
-// ActionsTimeLimit GitHub Actions 单个 job 的超时上限为 6 小时，
-// 用于计算"距离上限还剩多少时间"。
+// ActionsTimeLimit GitHub Actions 单个 job 的超时上限为 6 小时。
 const ActionsTimeLimit = 6 * time.Hour
+
+// AbortThreshold 距 Actions 超时的安全余量。
+// 剩余时间小于该阈值时触发 abort，留出时间让当前文件写完、
+// 程序优雅退出、GitHub Actions 打包上传工件。
+const AbortThreshold = 10 * time.Minute
 
 var (
 	startTime time.Time // 进度追踪的起点（InitProgress 时记录）
@@ -42,6 +46,18 @@ func Tick() string {
 
 	return fmt.Sprintf("[已用 %s | 预计还需 %s | 距6小时限制 %s]",
 		formatDuration(elapsed), formatDuration(eta), formatDuration(remaining))
+}
+
+// Remaining 返回距 Actions 超时的剩余时间。
+func Remaining() time.Duration {
+	return max(ActionsTimeLimit-time.Since(startTime), 0)
+}
+
+// ShouldAbort 检查剩余时间是否小于安全余量。
+// 用于在每条字幕翻译前判断：是继续翻还是放弃当前文件的剩余部分，
+// 把已完成的文件留给后续工件上传。
+func ShouldAbort() bool {
+	return Remaining() < AbortThreshold
 }
 
 // formatDuration 把时长格式化为 "X小时YY分"。
