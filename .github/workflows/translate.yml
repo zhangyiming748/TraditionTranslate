@@ -4,7 +4,7 @@ on:
   push:
     paths:
       - 'srt/**'
-      - '**.go'
+  workflow_dispatch:
 
 jobs:
   translate:

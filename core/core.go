@@ -1,8 +1,10 @@
 package core
 
 import (
+	"TraditionTranslate/util"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -62,7 +64,11 @@ func Core(inputfile string) {
 		} else {
 			subtitles[i].Zhcn = zhcn
 		}
-		fmt.Printf("[%d] 原文: %s\n   译文: %s\n\n", subtitles[i].Index, subtitles[i].Content, subtitles[i].Zhcn)
+		// 日志严格单行：原文/译文内部可能含换行（多行字幕、trans 折行），
+		// 替换为空格，保证一条字幕只占一行日志
+		logContent := strings.ReplaceAll(subtitles[i].Content, "\n", " ")
+		logZhcn := strings.ReplaceAll(subtitles[i].Zhcn, "\n", " ")
+		fmt.Printf("%s [%d] 原文: %s | 译文: %s\n", util.Tick(), subtitles[i].Index, logContent, logZhcn)
 
 		// 每条之间留出间隔，最后一条不用等
 		if i < len(subtitles)-1 {
@@ -111,4 +117,26 @@ func Core(inputfile string) {
 	}
 
 	fmt.Printf("翻译完成！已替换原始文件: %s\n", outputFile)
+}
+
+// CountTranslatable 统计一个字幕文件中实际需要翻译的条数。
+// 统计口径与 Core 的预处理流程完全一致（解析 → 去重 → 合并 → 非空内容），
+// 用于 main 在处理前汇总所有文件的总条数，供进度与耗时预估使用。
+func CountTranslatable(inputfile string) int {
+	subtitles, err := ParseSubtitle(inputfile)
+	if err != nil {
+		return 0
+	}
+	for i := range subtitles {
+		subtitles[i].Content = DedupRepeats(subtitles[i].Content)
+	}
+	subtitles = MergeSubtitles(subtitles)
+
+	count := 0
+	for _, s := range subtitles {
+		if s.Content != "" {
+			count++
+		}
+	}
+	return count
 }

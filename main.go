@@ -2,6 +2,7 @@ package main
 
 import (
 	"TraditionTranslate/core"
+	"TraditionTranslate/util"
 	"fmt"
 	"strings"
 	"time"
@@ -20,6 +21,17 @@ func main() {
 
 	// 查找所有字幕文件
 	srts := finder.FindAllFiles(srtDir)
+
+	// 先统计所有文件实际需要翻译的字幕总条数，初始化进度追踪。
+	// 总数用于每条日志中"预计还要多少时间"的估算。
+	total := 0
+	for _, srtpath := range srts {
+		if strings.HasSuffix(srtpath, "_zhs.srt") {
+			continue
+		}
+		total += core.CountTranslatable(srtpath)
+	}
+	util.InitProgress(total)
 
 	for i, srtpath := range srts {
 		fmt.Printf("处理文件: %s\n", srtpath)
