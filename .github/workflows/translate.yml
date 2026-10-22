@@ -42,6 +42,15 @@ jobs:
       - name: List all files
         run: tree ${{ github.workspace }}
       
+      - name: Show translation report
+        if: always()
+        run: |
+          if [ -f translate-report.txt ]; then
+            cat translate-report.txt
+          else
+            echo "未生成翻译报告"
+          fi
+      
       - name: Pack SRT files into tar archive
         if: always()
         run: |
@@ -55,6 +64,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: translated-subtitles
-          path: translated-srt.tar
+          path: |
+            translated-srt.tar
+            translate-report.txt
           retention-days: 30
           if-no-files-found: error
