@@ -18,7 +18,7 @@ func TestWriteReport(t *testing.T) {
 	}
 	defer os.Chdir(old)
 
-	util.InitProgress(10)
+	util.InitProgress(10, true)
 	order := []string{"srt/kmi001", "srt/kmi016"}
 	folders := map[string]*folderStat{
 		"srt/kmi001": {total: 2, done: 2},

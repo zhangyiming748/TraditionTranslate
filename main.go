@@ -56,6 +56,17 @@ func isProcessable(path string) bool {
 func main() {
 	srtDir := "srt"
 
+	// 选择翻译引擎：依次探测本地 LibreTranslate 地址池，
+	// 任一可用就用本地 API；全部不可用（例如在 GitHub Actions 上）则回落到 translate-shell。
+	local := core.SetupTranslator(core.LibreAPIBaseURLs)
+	if local {
+		fmt.Printf("翻译引擎: %s\n", core.EngineName())
+		fmt.Println("时间限制: 已禁用（本地运行，无 6 小时限制）")
+	} else {
+		fmt.Printf("翻译引擎: %s（本地 API 均不可用）\n", core.EngineName())
+		fmt.Println("时间限制: 6 小时（GitHub Actions）")
+	}
+
 	srts := finder.FindAllFiles(srtDir)
 
 	// 按子文件夹分组，并统计需要翻译的字幕总条数。
@@ -76,7 +87,7 @@ func main() {
 		}
 		folders[dir].total++
 	}
-	util.InitProgress(total)
+	util.InitProgress(total, !local)
 
 	// 启动时先写一份报告，所有视频标记为未完成。
 	// 之后每处理完一个文件就刷新，即使程序被强杀也能保留已有结果。
@@ -117,6 +128,12 @@ func main() {
 		writeReport(folderOrder, folders)
 	}
 
+	// 本地 API 无限流问题，不需要在文件之间等待
+	fileInterval := FileInterval
+	if core.IsLocalEngine() {
+		fileInterval = 0
+	}
+
 	for i, srtpath := range srts {
 		if !isProcessable(srtpath) {
 			continue
@@ -146,8 +163,10 @@ func main() {
 				skipRest(i + 1)
 				break
 			}
-			fmt.Printf("等待 %v 后处理下一个文件...\n", FileInterval)
-			time.Sleep(FileInterval)
+			if fileInterval > 0 {
+				fmt.Printf("等待 %v 后处理下一个文件...\n", fileInterval)
+				time.Sleep(fileInterval)
+			}
 		}
 	}
 
@@ -163,7 +182,11 @@ func writeReport(order []string, folders map[string]*folderStat) {
 	var b strings.Builder
 	b.WriteString("翻译报告\n")
 	fmt.Fprintf(&b, "生成时间: %s\n", time.Now().Format("2006-01-02 15:04:05"))
-	fmt.Fprintf(&b, "距6小时限制剩余: %v\n\n", util.Remaining().Truncate(time.Second))
+	if util.TimeLimitEnabled() {
+		fmt.Fprintf(&b, "距6小时限制剩余: %v\n\n", util.Remaining().Truncate(time.Second))
+	} else {
+		b.WriteString("运行方式: 本地（无6小时限制）\n\n")
+	}
 
 	success, incomplete := 0, 0
 	for _, dir := range order {
@@ -210,7 +233,11 @@ func printGlobalSummary(results []fileResult) {
 		fmt.Println("============================================================")
 		fmt.Printf("  📋  全局处理汇总 (第 %d/3 次)\n", pass)
 		fmt.Println("============================================================")
-		fmt.Printf("  剩余时间:  %v\n", remaining)
+		if util.TimeLimitEnabled() {
+			fmt.Printf("  剩余时间:  %v\n", remaining)
+		} else {
+			fmt.Println("  时间限制:  不限（本地运行）")
+		}
 		fmt.Printf("  完成翻译:  %d 个文件\n", doneCount)
 		fmt.Printf("  部分翻译:  %d 个文件\n", partialCount)
 		fmt.Printf("  跳过未译:  %d 个文件\n", skippedCount)

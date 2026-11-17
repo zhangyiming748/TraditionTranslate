@@ -8,11 +8,6 @@ import (
 	"time"
 )
 
-// TranslateInterval 每条字幕翻译之间的间隔。
-// 逐条串行翻译并留出间隔，避免请求过于频繁触发 Google 限流，
-// 限流时 trans 命令会返回空内容（DST 为空）。
-const TranslateInterval = 2 * time.Second
-
 // Core 核心功能：解析字幕文件，翻译原文内容为中文，生成新的字幕文件。
 // 返回值表示是否因接近 6 小时超时而提前 abort，
 // 调用方据此决定是否停止处理后续文件。
@@ -63,9 +58,10 @@ func Core(inputfile string) bool {
 		logZhcn := strings.ReplaceAll(subtitles[i].Zhcn, "\n", " ")
 		fmt.Printf("%s [%d] 原文: %s | 译文: %s\n", util.Tick(), subtitles[i].Index, logContent, logZhcn)
 
-		// 每条之间留出间隔，最后一条不用等
-		if i < len(subtitles)-1 {
-			time.Sleep(TranslateInterval)
+		// 每条之间留出间隔，最后一条不用等。
+		// 本地 API 无限流问题，间隔为 0 时直接跳过。
+		if interval := TranslateInterval(); interval > 0 && i < len(subtitles)-1 {
+			time.Sleep(interval)
 		}
 	}
 
