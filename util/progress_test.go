@@ -25,7 +25,7 @@ func TestFormatDuration(t *testing.T) {
 }
 
 func TestTick(t *testing.T) {
-	InitProgress(2)
+	InitProgress(2, true)
 	outputs := []string{Tick(), Tick()}
 
 	for _, s := range outputs {
@@ -42,5 +42,38 @@ func TestTick(t *testing.T) {
 	// 翻译完全部条数后，预计剩余应为 0
 	if !strings.Contains(outputs[1], "预计还需 0小时00分") {
 		t.Errorf("全部完成后预计剩余应为 0, 实际: %s", outputs[1])
+	}
+}
+
+func TestTickWithoutTimeLimit(t *testing.T) {
+	InitProgress(1, false)
+	output := Tick()
+
+	if strings.Contains(output, "距6小时限制") {
+		t.Errorf("本地运行不应显示 6 小时限制: %s", output)
+	}
+	if !strings.Contains(output, "已用") || !strings.Contains(output, "预计还需") {
+		t.Errorf("Tick 输出缺少已用/预计字段: %s", output)
+	}
+	if ShouldAbort() {
+		t.Error("本地运行（未启用时间限制）不应触发超时 abort")
+	}
+	if TimeLimitEnabled() {
+		t.Error("InitProgress(_, false) 后 TimeLimitEnabled 应返回 false")
+	}
+}
+
+func TestShouldAbortWithTimeLimit(t *testing.T) {
+	InitProgress(1, true)
+	// 刚开始时剩余时间充足，不应 abort
+	if ShouldAbort() {
+		t.Error("刚开始时不应触发超时 abort")
+	}
+
+	// 把起点回拨到接近 6 小时上限，应触发 abort
+	startTime = time.Now().Add(-(ActionsTimeLimit - AbortThreshold + time.Minute))
+	defer func() { startTime = time.Now() }()
+	if !ShouldAbort() {
+		t.Error("剩余时间小于安全余量时应触发 abort")
 	}
 }
