@@ -3,6 +3,7 @@ package main
 import (
 	"TraditionTranslate/core"
 	"TraditionTranslate/util"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -54,7 +55,11 @@ func isProcessable(path string) bool {
 }
 
 func main() {
-	srtDir := "srt"
+	// 字幕文件存放目录：默认 "srt"，可通过 -dir 参数覆盖。
+	// 工作流直接 go run main.go 用默认值；本地运行可指定其他目录。
+	srtDir := flag.String("dir", "srt", "字幕文件存放目录")
+	flag.Parse()
+	fmt.Printf("字幕目录: %s\n", *srtDir)
 
 	// 选择翻译引擎：依次探测本地 LibreTranslate 地址池，
 	// 任一可用就用本地 API；全部不可用（例如在 GitHub Actions 上）则回落到 translate-shell。
@@ -67,7 +72,7 @@ func main() {
 		fmt.Println("时间限制: 6 小时（GitHub Actions）")
 	}
 
-	srts := finder.FindAllFiles(srtDir)
+	srts := finder.FindAllFiles(*srtDir)
 
 	// 按子文件夹分组，并统计需要翻译的字幕总条数。
 	// 一个子文件夹对应一个视频，只有其中所有 SRT 都翻译成功才算该视频成功。
