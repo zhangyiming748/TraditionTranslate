@@ -24,7 +24,12 @@ func ParseSubtitle(path string) ([]Subtitle, error) {
 		return nil, err
 	}
 
-	content := string(data)
+	// 兼容三种换行：Windows 的 CRLF、Linux/macOS 的 LF、老式 macOS 的 CR。
+	// 统一归一化为 \n，parseContent 的空行分隔（\n{2,}）才能正确切分字幕块；
+	// 否则 CRLF 文件一个块都切不开，整个文件会被当成一条字幕（内容变成全文），
+	// 后续去重算法在超长文本上会长时间占满 CPU，表现为程序无任何输出。
+	// NewReplacer 单次扫描，先匹配 \r\n 再匹配单独的 \r，不会把 CRLF 拆成两个换行。
+	content := strings.NewReplacer("\r\n", "\n", "\r", "\n").Replace(string(data))
 	return parseContent(content)
 }
 
