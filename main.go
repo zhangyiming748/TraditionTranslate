@@ -80,11 +80,23 @@ func main() {
 	folders := map[string]*folderStat{}
 	total := 0
 
+	// 扫描阶段必须完整读一遍每个 SRT 才能统计字幕条数（进度和耗时预估要用），
+	// 网络盘上这一步很慢。这里先按文件数初始化进度，复用 util.Tick 的统一输出，
+	// 避免长时间无输出让人以为卡死。
+	scanFiles := []string{}
 	for _, srtpath := range srts {
-		if !isProcessable(srtpath) {
-			continue
+		if isProcessable(srtpath) {
+			scanFiles = append(scanFiles, srtpath)
 		}
-		total += core.CountTranslatable(srtpath)
+	}
+	util.InitProgress(len(scanFiles), !local)
+	for i, srtpath := range scanFiles {
+		// 先打印再读文件：网络盘上一个文件可能要读几十秒，
+		// 打印放在读取之后会让这段时间看起来像卡死。
+		fmt.Printf("%s 扫描 %d/%d: %s\n", util.Tick(), i+1, len(scanFiles), srtpath)
+
+		cues := core.CountTranslatable(srtpath)
+		total += cues
 		dir := filepath.ToSlash(filepath.Dir(srtpath))
 		if _, ok := folders[dir]; !ok {
 			folders[dir] = &folderStat{}
@@ -92,6 +104,9 @@ func main() {
 		}
 		folders[dir].total++
 	}
+	fmt.Printf("扫描完成: %d 个文件，共 %d 条待翻译字幕\n", len(scanFiles), total)
+
+	// 扫描结束，按真实字幕条数重新初始化翻译阶段的进度。
 	util.InitProgress(total, !local)
 
 	// 启动时先写一份报告，所有视频标记为未完成。
